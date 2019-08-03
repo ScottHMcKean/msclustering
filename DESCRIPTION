@@ -1,0 +1,19 @@
+Package: msclustering
+Type: Package
+Title: Hierarchical Physics-Based Clustering of Microseismic Data
+Version: 0.1.0
+Author: Scott McKean
+Maintainer: Scott McKean <smckean@geoengio.com>
+Description: See McKean et al. 2019
+License: GNU GPL V.3
+Encoding: UTF-8
+LazyData: true
+Depends:
+    mclust,
+    tidyverse,
+    gridExtra,
+    ggsci
+Suggests:
+    lintr
+VignetteBuilder: knitr
+RoxygenNote: 6.1.1
