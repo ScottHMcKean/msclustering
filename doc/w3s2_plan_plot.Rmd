@@ -1,0 +1,50 @@
+---
+title: "Plot All Microseismic Data"
+author: "Scott McKean"
+date: "7/21/2019"
+output: html_document
+---
+
+Load Libraries and Data
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggsci)
+library(msclustering)
+```
+
+## R Markdown
+
+```{r}
+xyplot <- ggplot(w3s2_ms_df) +
+  geom_point(aes(x = x, y = y,
+                 colour = factor(cluster), fill = factor(cluster)), shape = 1, stroke = 0.2) +
+  stat_ellipse(aes(x = x, y = y,
+                   colour = factor(cluster)), type = 'norm') +
+  stat_ellipse(aes(x = x, y = y,
+                   fill = factor(cluster)), geom = "polygon", type = 'norm', alpha = 0.25) +
+  scale_color_npg(name = "Cluster") +
+  scale_fill_npg(name = "Cluster")
+
+for (well_i in seq(length(unique(comp_df$well)))){
+  xyplot <- xyplot +
+    geom_path(data = survey_df[survey_df$well == well_i,], aes(x=x,y=y)) +
+    geom_point(data = comp_df[comp_df$well == well_i,], aes(x=x,y=y),
+               col ='red', size = 1)
+}
+
+xyplot <- xyplot +
+  ggtitle('(b) IS Clusters') +
+  xlab('Easting (m)') +
+  ylab('Northing (m)') +
+  coord_equal() +
+  theme_minimal() +
+  ylim(-1000,4000) +
+  xlim(0,5001) +
+  theme(legend.position="bottom") +
+  ggsave(file = '4b_is.jpg', width = 15, height = 15, 
+       units = 'cm', dpi = 600) +
+  ggsave(file = '4b_is.eps', width = 15, height = 15, 
+       units = 'cm')
+
+```

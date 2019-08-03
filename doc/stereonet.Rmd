@@ -1,0 +1,26 @@
+---
+title: "mplstereonet"
+author: "Scott McKean"
+date: "8/3/2019"
+output: html_document
+---
+
+Notebook for runnning mplstereonet from within R using reticulate
+
+```{r setup, include=FALSE}
+library(reticulate)
+```
+
+```{python}
+import mplstereonet
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+import scipy
+```
+
+```{python}
+import mplstereonet
+import pandas
+```

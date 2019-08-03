@@ -1,0 +1,138 @@
+---
+title: "Microseismic Clustering"
+author: "Scott McKean"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+library(msclustering)
+```
+
+This notebook runs the original data
+
+```{r}
+# load data
+ms_df <- read_csv('../data/2_processed_msdata.csv') %>%
+  filter(mw >= -1.5) %>%
+  mutate(well_num = operator_well_num) %>%
+  mutate(stage_num = operator_stage_num) %>%
+  mutate(well = well_num) %>%
+  mutate(stage = stage_num)
+
+survey_df <- read_csv('../data/2_processed_surveys.csv') %>% 
+  mutate(well = well_num)
+  
+comp_df <- read_csv('../data/2_processed_completions.csv') %>%
+  mutate(well = well_num) %>%
+  mutate(stage = stage_num) %>%
+  mutate(r_ap = r_ap * 1.88)
+```
+
+No separation at all
+
+```{r}
+ms_mock <- ms_df %>%
+  mutate(class_well = 0, class_stage = 0, bool = 0)
+
+noseparation <- run_gmm_parallel(ms_df = ms_mock, 
+                           comp_df = comp_df,
+                           surv_df = survey_df,  
+                           run = 1, 
+                           comp_tcol = 't',  
+                           ms_tcol = 't',  
+                           plot = FALSE,
+                           output_path = '../output/')
+
+saveRDS(noseparation, file = '../output/1_no_separation.rds')
+```
+
+Original operator separation
+
+```{r}
+ms_op_class <- ms_df %>%
+  mutate(class_well = well, class_stage = stage, bool = 0)
+  
+operator_class <- run_gmm_parallel(ms_df = ms_op_class, 
+                           comp_df = comp_df,
+                           surv_df = survey_df,  
+                           run = 1, 
+                           comp_tcol = 't',  
+                           ms_tcol = 't',  
+                           plot = FALSE,
+                           output_path = '../output/')
+
+saveRDS(operator_class, file = '../output/2_operator_class.rds')
+
+w3s2_ms_df <- operator_class[[1]] %>%
+  filter(class_well == 3, class_stage ==2)
+
+w3s2_ms_df$cluster %>% unique()
+```
+
+Reclassification
+
+```{r}
+ms_class <- classify_ms(ms_df = ms_df, 
+                        comp_df = comp_df,
+                        comp_tcol = 't', ms_tcol = 't')
+
+ms_class$bool <- 0
+
+reclassification <- run_gmm_parallel(ms_df = ms_class, 
+                           comp_df = comp_df,
+                           surv_df = survey_df,  
+                           run = 1, 
+                           comp_tcol = 't',  
+                           ms_tcol = 't',  
+                           plot = FALSE,
+                           output_path = '../output/')
+
+saveRDS(reclassification, file = '../output/3_reclassification.rds')
+
+w3s2_ms_df <- reclassification[[1]] %>%
+  filter(class_well == 3, class_stage ==2)
+
+w3s2_ms_df$cluster %>% unique()
+```
+
+Outlier Detection
+
+```{r}
+ms_outlier <- detect_outlier(ms_df = ms_class, comp_df, plot = FALSE)
+
+outlier_detect <- run_gmm_parallel(ms_df = ms_outlier, 
+                           comp_df = comp_df,
+                           surv_df = survey_df,  
+                           run = 1, 
+                           comp_tcol = 't',  
+                           ms_tcol = 't',  
+                           plot = FALSE,
+                           output_path = '../output/')
+
+saveRDS(outlier_detect, file = '../output/4_outlier_detect.rds')
+
+w3s2_ms_df <- outlier_detect[[1]] %>%
+  filter(class_well == 3, class_stage ==2, bool == 1)
+
+w3s2_ms_df$cluster %>% unique()
+
+outlier_detect[[2]] %>% 
+  group_by(well_num_i, stage_num_i) %>% 
+  summarize(n = n()) %>%
+  pull(n) %>% 
+  hist()
+
+ms_outlier %>% 
+  group_by(class_well, class_stage, bool) %>% 
+  summarize(n = n()) %>% 
+  nrow()
+
+gmm_ms_results <- outlier_detect[[1]]
+gmm_clusters <- outlier_detect[[2]]
+```
+
