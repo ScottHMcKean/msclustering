@@ -6,10 +6,10 @@
 \usage{
 gg_cluster_plot(ms_df, comp_df, surv_df, well = "1", stage = "1",
   outlier = 0, order = "0", title = TRUE, legend_bool = FALSE,
-  label = "")
+  label = "", output_path = "../output/")
 }
 \arguments{
-\item{ms_df}{microseismic dataframe with x,y,z,m0}
+\item{ms_df}{microseismic dataframe with x,y,z}
 
 \item{well}{well label}
 

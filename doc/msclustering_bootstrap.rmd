@@ -1,0 +1,79 @@
+---
+title: "Microseismic Clustering"
+author: "Scott McKean"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+library(msclustering)
+library(doParallel)
+```
+
+This vignette runs the Gaussian mixture model clustering on a user supplied 
+dataset. First we import the data
+
+```{r}
+# load data
+ms_df <- read_csv('../data/2_processed_msdata.csv') %>%
+  filter(mw >= -1.5) %>%
+  mutate(well_num = operator_well_num) %>%
+  mutate(stage_num = operator_stage_num) %>%
+  mutate(well = well_num) %>%
+  mutate(stage = stage_num)
+
+survey_df <- read_csv('../data/2_processed_surveys.csv') %>% 
+  mutate(well = well_num)
+  
+comp_df <- read_csv('../data/2_processed_completions.csv') %>%
+  mutate(well = well_num) %>%
+  mutate(stage = stage_num) %>%
+  mutate(r_ap = r_ap * 1.88)
+
+n <- 100
+
+### START FUTURE LOOP ###
+# Add comp_df, ms_df, and survey_df as an unchanging global
+registerDoParallel(cores=70)
+
+start = Sys.time()
+
+out <- foreach (run_n = 1:n, .export = c('ms_df', 'survey_df', 'comp_df'),
+         .packages = c('dplyr','mclust', 'msclustering')) %dopar% {
+  
+  run_result <- list()
+  run_result$resampled_comp_df <- resample_comp_df(comp_df, survey_df)
+  
+  resampled_ms_df <- ms_df %>% 
+    mutate(x = x + runif(nrow(.), min = -ux, max = ux)) %>%
+    mutate(y = y + runif(nrow(.), min = -uy, max = uy)) %>%
+    mutate(z = z + runif(nrow(.), min = -uz, max = uz))
+  
+  ms_class <- classify_ms(ms_df = resampled_ms_df, 
+                          comp_df = run_result$resampled_comp_df,
+                          comp_tcol = 't', ms_tcol = 't')
+  
+  ms_outlier <- detect_outlier(ms_class, run_result$resampled_comp_df, survey_df, plot = FALSE)
+  
+  temporary_output <- run_gmm_parallel(ms_df = ms_outlier, comp_df = run_result$resampled_comp_df, 
+                                       surv_df = survey_df,  run = run_n, 
+                                       comp_tcol = 't',  ms_tcol = 't',  plot = FALSE,
+                                       output_path = '~/2_processed_ms_results/output_ms_only/')
+    
+  run_result$gmm_ms_results <- temporary_output[[1]]
+  run_result$ellipse_data <- temporary_output[[2]]
+  run_result$covariance_date <- temporary_output[[3]]
+  
+  run_result
+}
+
+saveRDS(out, file = '~/2_processed_ms_results/')
+
+Sys.time() - start
+
+run_result$resampled_comp_df
+```

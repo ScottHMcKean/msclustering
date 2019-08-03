@@ -4,10 +4,9 @@
 \alias{run_gmm_parallel}
 \title{Run the Gaussian Mixture Model function}
 \usage{
-run_gmm_parallel(ms_df, comp_df, surv_df, run = 1,
-  comp_start_col = "t", ms_feat = c("x", "y", "z", "t"),
-  ms_time_col = "t", title_bool = FALSE, legend_bool = FALSE,
-  plot = FALSE, ...)
+run_gmm_parallel(ms_df, comp_df, surv_df, run = 1, comp_tcol = "t",
+  ms_feat = c("x", "y", "z", "t"), ms_tcol = "t",
+  output_path = "../output/", plot = FALSE, ...)
 }
 \arguments{
 \item{ms_df}{microseismic data in a dataframe}
@@ -18,9 +17,15 @@ run_gmm_parallel(ms_df, comp_df, surv_df, run = 1,
 
 \item{run}{run number}
 
-\item{comp_start_col}{string to identify col of df with start day}
+\item{comp_tcol}{string to identify col of df with start day}
 
 \item{ms_feat}{a list of columns for the clustering}
+
+\item{ms_tcol}{string to identify time column of ms data}
+
+\item{output_path}{output path to save csvs to}
+
+\item{plot}{bool for calling stage based plot function}
 }
 \description{
 Run the MClust package with up to 30 clusters and a VVV model
