@@ -12,26 +12,115 @@ library(purrr)
 library(furrr)
 ```
 
-# Pull cluster spreadsheets and map number of total, is, and hf clusters
-# Compare their mean strikes too
+# List Path
+```{r}
+csv_path <- '~/2_processed_ms_results/output_ms_perf/'
+```
+# Get cluster files
 
 ```{r}
-cluster_files <- list.files('~/2_processed_ms_results/output_ms_only/', pattern = 'clusters', full.names = TRUE)
+cluster_files <- list.files(csv_path, pattern = 'clusters', full.names = TRUE)
+tagged_ms_files <- list.files(csv_path, pattern = 'gmm_result', full.names = TRUE)
 cluster_dfs <- future_map(cluster_files, fread)
+```
 
-# define functions to read outputs
+# Count the number of events per reclassified stage
+
+```{r}
+# map function to filter each microseismic data to well 3, stage 2
+get_stage_event_count <- function(df){
+  fread(df) %>%
+    group_by(class_well, class_stage) %>%
+    summarize(n = n()) %>%
+    pull(n) %>%
+    max()
+}
+
+max_stage_count <- map_dbl(.x = tagged_ms_files, get_stage_event_count)
+max_stage_count %>% sd()
+
+```
+
+# Get totals for each run
+
+```{r}
+cluster_example <- cluster_dfs[[1]]
+
+get_quantiles <- function(x){
+  med_hf = x %>% filter(hf == TRUE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% median() * 180 / pi
+  upp_hf = x %>% filter(hf == TRUE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% quantile(., 0.25) * 180 / pi
+  low_hf = x %>% filter(hf == TRUE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% quantile(., 0.75) * 180 / pi
+  med_is = x %>% filter(hf == FALSE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% median() * 180 / pi
+  upp_is = x %>% filter(hf == FALSE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% quantile(., 0.25) * 180 / pi
+  low_is = x %>% filter(hf == FALSE) %>% pull(plane_strike) %>% ifelse(. > pi, . - pi, .) %>% quantile(., 0.75) * 180 / pi
+  data.frame(med_hf, upp_hf, low_hf, med_is, upp_is, low_is)
+}
+
+# map number of hf groups using a group_by
+map_groups_hf <- function(x) x %>% group_by(well_num_i, stage_num_i, hf) %>% summarize(n = n()) %>% filter(hf == 1) %>% nrow()
+map_groups_is <- function(x) x %>% group_by(well_num_i, stage_num_i, hf) %>% summarize(n = n()) %>% filter(hf == 0) %>% nrow()
+map_max_clust <- function(x) x %>% group_by(well_num_i, stage_num_i, hf) %>% summarize(n = n()) %>% pull(n) %>% max()
+
+hf_groups = map_dbl(cluster_dfs, map_groups_hf)
+mean(hf_groups) %>% round(0)
+sd(hf_groups)
+
+is_groups = map_dbl(cluster_dfs, map_groups_is)
+mean(is_groups) %>% round(0)
+sd(is_groups)
+
+max_clust = map_dbl(cluster_dfs, map_max_clust)
+mean(max_clust) %>% round(0)
+sd(max_clust)
+
+# get quantiles
+map_quantiles_strikes <- map_dfr(cluster_dfs,get_quantiles)
+mean(map_quantiles_strikes$med_hf)
+sd(map_quantiles_strikes$med_hf)
+range(map_quantiles_strikes$low_hf)
+range(map_quantiles_strikes$upp_hf)
+
+mean(map_quantiles_strikes$med_is)
+sd(map_quantiles_strikes$med_is)
+range(map_quantiles_strikes$low_is)
+range(map_quantiles_strikes$upp_is)
+
+#define functions to read outputs from a large number of files
 n_total <- function(x) x %>% nrow()
 n_is <- function(x) x %>% filter(hf == FALSE) %>% nrow()
 n_hf <- function(x) x %>% filter(hf == TRUE) %>% nrow()
 is_strike_mean <- function(x) x %>% filter(hf == FALSE) %>% pull(plane_strike) %>% mean() * 180 / pi
 hf_strike_mean <- function(x) x %>% filter(hf == TRUE) %>% pull(plane_strike) %>% mean() * 180 / pi
 
-map_dbl(cluster_dfs, nrow) %>% hist()
-map_dbl(cluster_dfs, n_is) %>% hist()
-map_dbl(cluster_dfs, n_hf) %>% hist()
-map_dbl(cluster_dfs, is_strike_mean) %>% hist()
-map_dbl(cluster_dfs, hf_strike_mean) %>% hist()
+mapped_cluster_results <- data.frame(n_total = map_dbl(cluster_dfs, nrow),
+                                     n_is = map_dbl(cluster_dfs, n_is),
+                                     n_hf = map_dbl(cluster_dfs, n_hf),
+                                     mean_strike_is = map_dbl(cluster_dfs, is_strike_mean),
+                                     mean_strike_hf = map_dbl(cluster_dfs, hf_strike_mean))
 
+
+
+summary_mcr <- mapped_cluster_results %>%
+  summarize_all(.funs = c('mean','sd'))
+
+summary_mcr$n_total_mean %>% round(0)
+summary_mcr$n_total_sd
+
+get_height_med <- function(x) x %>% dplyr::filter(plane_dip >= (60 * pi / 180)) %>% pull(plane_l2) %>% median()
+get_length_med <- function(x) x %>% dplyr::filter(plane_dip >= (60 * pi / 180)) %>% pull(plane_l1) %>% median()
+
+height <- map_dbl(cluster_dfs, get_height_med)
+mean(height)
+sd(height)
+
+length <- map_dbl(cluster_dfs, get_length_med)
+mean(length)
+sd(length)
+```
+
+# Cluster stability - standard deviation and interquartile range between clusters
+
+```{r}
 # get standard deviation and interquartile range of clusters for all the runs
 table <- cluster_dfs %>%
   map(function(x) table(x$well_num_i,x$stage_num))
@@ -54,12 +143,9 @@ for (well in seq(1,8)){
 cluster_iqr <- cluster_q75 - cluster_q25
 ```
 
-Make Well 3, Stage 2 plot
+# Investigate Well 3 Stage 2 Data
 
 ```{r}
-# pull microseismic data
-tagged_ms_files <- list.files('~/2_processed_ms_results/output_ms_perf/', pattern = 'gmm_results', full.names = TRUE)
-
 # map function to filter each microseismic data to well 3, stage 2
 get_w3_s2_res <- function(df, n){
   fread(df) %>%
@@ -67,21 +153,13 @@ get_w3_s2_res <- function(df, n){
     mutate(run_n = n)
 }
 
-w3s2_list <- list()
+w3s2_ms_res <- map2_dfr(.x = tagged_ms_files, .y = seq(1:length(tagged_ms_files)), get_w3_s2_res)
 
-for (i in 1:100){
-  w3s2_list[[i]] <- fread(tagged_ms_files[[i]]) %>%
-    dplyr::filter(class_well == 3 & class_stage == 2)
-}
+w3s2events <- w3s2_ms_res %>%
+  group_by(run_n) %>%
+  summarize(n = n())
 
-# number of ms events in w3s2_list
-f <- function(x) nrow(x)
-map_dbl(w3s2_list, f)
-
-f <- 
-
-# # run mapping using all cores
-gmm_res_dfs <- map2_dfr(.x = tagged_ms_files[1:100], .y = seq(1,100), get_w3_s2_res)
+mean(w3s2events$n)
 ```
 
 ```{r}
