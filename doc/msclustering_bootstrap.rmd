@@ -34,19 +34,15 @@ comp_df <- read_csv('../data/2_processed_completions.csv') %>%
   mutate(stage = stage_num) %>%
   mutate(r_ap = r_ap * 1.88)
 
-n <- 100
+n <- 10000
 
-### START FUTURE LOOP ###
-# Add comp_df, ms_df, and survey_df as an unchanging global
-registerDoParallel(cores=70)
+### MS + PERF ###
+registerDoParallel(cores=75)
 
-start = Sys.time()
-
-out <- foreach (run_n = 1:n, .export = c('ms_df', 'survey_df', 'comp_df'),
+ms_perf <- out_ms_perf <- foreach (run_n = 1:n, .export = c('ms_df', 'survey_df', 'comp_df'),
          .packages = c('dplyr','mclust', 'msclustering')) %dopar% {
   
-  run_result <- list()
-  run_result$resampled_comp_df <- resample_comp_df(comp_df, survey_df)
+  resampled_comp_df <- resample_comp_df(comp_df, survey_df)
   
   resampled_ms_df <- ms_df %>% 
     mutate(x = x + runif(nrow(.), min = -ux, max = ux)) %>%
@@ -54,26 +50,47 @@ out <- foreach (run_n = 1:n, .export = c('ms_df', 'survey_df', 'comp_df'),
     mutate(z = z + runif(nrow(.), min = -uz, max = uz))
   
   ms_class <- classify_ms(ms_df = resampled_ms_df, 
-                          comp_df = run_result$resampled_comp_df,
+                          comp_df = resampled_comp_df,
                           comp_tcol = 't', ms_tcol = 't')
   
-  ms_outlier <- detect_outlier(ms_class, run_result$resampled_comp_df, survey_df, plot = FALSE)
+  ms_outlier <- detect_outlier(ms_df = ms_class, 
+                               comp_df = resampled_comp_df, 
+                               plot = FALSE)
   
-  temporary_output <- run_gmm_parallel(ms_df = ms_outlier, comp_df = run_result$resampled_comp_df, 
-                                       surv_df = survey_df,  run = run_n, 
-                                       comp_tcol = 't',  ms_tcol = 't',  plot = FALSE,
-                                       output_path = '~/2_processed_ms_results/output_ms_only/')
-    
-  run_result$gmm_ms_results <- temporary_output[[1]]
-  run_result$ellipse_data <- temporary_output[[2]]
-  run_result$covariance_date <- temporary_output[[3]]
+  out <- run_gmm_parallel(ms_df = ms_outlier, comp_df = resampled_comp_df, 
+                   surv_df = survey_df,  run = run_n, 
+                   comp_tcol = 't',  ms_tcol = 't',  plot = FALSE,
+                   output_path = '~/2_processed_ms_results/output_ms_perf/')
   
-  run_result
+  run_n
 }
 
-saveRDS(out, file = '~/2_processed_ms_results/')
+### MS ONLY ###
+registerDoParallel(cores=75)
 
-Sys.time() - start
+ms_only <- foreach (run_n = 1:n, .export = c('ms_df', 'survey_df', 'comp_df'),
+         .packages = c('dplyr','mclust', 'msclustering')) %dopar% {
+  
+  run_result <- list()
 
-run_result$resampled_comp_df
+  resampled_ms_df <- ms_df %>% 
+    mutate(x = x + runif(nrow(.), min = -ux, max = ux)) %>%
+    mutate(y = y + runif(nrow(.), min = -uy, max = uy)) %>%
+    mutate(z = z + runif(nrow(.), min = -uz, max = uz))
+  
+  ms_class <- classify_ms(ms_df = resampled_ms_df, 
+                          comp_df = comp_df,
+                          comp_tcol = 't', ms_tcol = 't')
+  
+  ms_outlier <- detect_outlier(ms_df = ms_class, 
+                               comp_df = comp_df, 
+                               plot = FALSE)
+  
+  out <- run_gmm_parallel(ms_df = ms_outlier, comp_df = comp_df, 
+                   surv_df = survey_df,  run = run_n, 
+                   comp_tcol = 't',  ms_tcol = 't',  plot = FALSE,
+                   output_path = '~/2_processed_ms_results/output_ms_only/')
+  
+  run_n
+}
 ```

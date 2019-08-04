@@ -1,0 +1,183 @@
+---
+title: "read_output_csv"
+author: "Scott McKean"
+date: "18/07/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(data.table)
+library(tidyverse)
+library(purrr)
+library(furrr)
+```
+
+# Pull cluster spreadsheets and map number of total, is, and hf clusters
+# Compare their mean strikes too
+
+```{r}
+cluster_files <- list.files('~/2_processed_ms_results/output_ms_only/', pattern = 'clusters', full.names = TRUE)
+cluster_dfs <- future_map(cluster_files, fread)
+
+# define functions to read outputs
+n_total <- function(x) x %>% nrow()
+n_is <- function(x) x %>% filter(hf == FALSE) %>% nrow()
+n_hf <- function(x) x %>% filter(hf == TRUE) %>% nrow()
+is_strike_mean <- function(x) x %>% filter(hf == FALSE) %>% pull(plane_strike) %>% mean() * 180 / pi
+hf_strike_mean <- function(x) x %>% filter(hf == TRUE) %>% pull(plane_strike) %>% mean() * 180 / pi
+
+map_dbl(cluster_dfs, nrow) %>% hist()
+map_dbl(cluster_dfs, n_is) %>% hist()
+map_dbl(cluster_dfs, n_hf) %>% hist()
+map_dbl(cluster_dfs, is_strike_mean) %>% hist()
+map_dbl(cluster_dfs, hf_strike_mean) %>% hist()
+
+# get standard deviation and interquartile range of clusters for all the runs
+table <- cluster_dfs %>%
+  map(function(x) table(x$well_num_i,x$stage_num))
+
+cluster_mean <- matrix(nrow = 8, ncol = 29)
+cluster_sd <- matrix(nrow = 8, ncol = 29)
+cluster_q25 <- matrix(nrow = 8, ncol = 29)
+cluster_q75 <- matrix(nrow = 8, ncol = 29)
+
+for (well in seq(1,8)){
+  for (stage in seq(1,29)){
+    clust_vector <- map_dbl(table, function(x) x[well,stage])
+    cluster_q25[well,stage] <- quantile(clust_vector, 1/4)
+    cluster_q75[well,stage] <- quantile(clust_vector, 3/4)
+    cluster_mean[well,stage] <- mean(clust_vector)
+    cluster_sd[well,stage]  <- sd(clust_vector)
+  }
+}
+
+cluster_iqr <- cluster_q75 - cluster_q25
+```
+
+Make Well 3, Stage 2 plot
+
+```{r}
+# pull microseismic data
+tagged_ms_files <- list.files('~/2_processed_ms_results/output_ms_perf/', pattern = 'gmm_results', full.names = TRUE)
+
+# map function to filter each microseismic data to well 3, stage 2
+get_w3_s2_res <- function(df, n){
+  fread(df) %>%
+    dplyr::filter(class_well == 3 & class_stage == 2) %>%
+    mutate(run_n = n)
+}
+
+w3s2_list <- list()
+
+for (i in 1:100){
+  w3s2_list[[i]] <- fread(tagged_ms_files[[i]]) %>%
+    dplyr::filter(class_well == 3 & class_stage == 2)
+}
+
+# number of ms events in w3s2_list
+f <- function(x) nrow(x)
+map_dbl(w3s2_list, f)
+
+f <- 
+
+# # run mapping using all cores
+gmm_res_dfs <- map2_dfr(.x = tagged_ms_files[1:100], .y = seq(1,100), get_w3_s2_res)
+```
+
+```{r}
+# What is the range of location uncertainties?
+mean(gmm_res_dfs$ux)
+IQR(gmm_res_dfs$ux)
+mean(gmm_res_dfs$uy)
+IQR(gmm_res_dfs$uy)
+mean(gmm_res_dfs$uz)
+IQR(gmm_res_dfs$uz)
+
+# What is the perforated stage length of well 3, stage 2?
+# W3S2 is a good example of a very uncertain perforation length and open hole completion
+comp_df <- read_csv("data/updated_completions.csv")
+surv_df <- read_csv("data/updated_surveys.csv")
+
+# How many events do we have in W3S2 after reclassification
+reclass_W3S2 <- gmm_res_dfs %>%
+  group_by(run_n) %>%
+  filter(class_well == 3, class_stage == 2) %>%
+  summarize(n = n())
+
+original_W3S2 <- gmm_res_dfs %>%
+  group_by(run_n) %>%
+  filter(operator_well_num == 3, operator_stage_num == 2) %>%
+  summarize(n = n())
+
+gmm_res_dfs %>%
+  group_by(run_n) %>%
+  summarize(n = n())
+
+gmm_res_dfs[1:1000,] %>% View()
+
+hist(original_W3S2$n)
+
+# How many induced seismicity 
+# In all 10,000 runs, there are only thr
+distinct_is_clusters <- gmm_res_dfs %>%
+  group_by(run_n) %>%
+  filter(bool == 1) %>%
+  summarize(n_distinct(cluster))
+
+(distinct_is_clusters)
+
+  summarize(n(cluster))
+  pull(cluster) %>%
+  unique()
+
+
+group_by(cluster) %>%
+  summarize(IS = sum(bool))
+# How many induced seismicity clusters are there?
+
+
+gg_cluster_plot(ms_df = gmm_res_dfs %>% filter(run_n == 1),
+                comp_df = comp_df,
+                surv_df = surv_df)
+```
+
+ggplot tile
+
+```{r}
+mat_to_df <- function(mat, gather = TRUE){
+  out_df <- as.data.frame(mat, row.names = seq(1,nrow(mat)))
+  colnames(out_df) <- seq(1,ncol(mat))
+  out_df <- cbind(out_df, well = rownames(out_df) %>% as.numeric)
+  
+  if(gather){
+    out_df <- gather(data = out_df, key = stage, value = cluster, -well)
+    out_df$stage <- out_df$stage %>% as.numeric
+  }
+  
+  out_df
+}
+
+sd <- mat_to_df(cluster_sd) %>%
+  mutate(meas = 'Standard Deviation')
+
+iqr <- mat_to_df(cluster_iqr) %>%
+  mutate(meas = 'Interquartile Range')
+
+uncertainity_measures = rbind(sd,iqr)
+
+ggplot(uncertainity_measures) +
+  geom_tile(aes(x = stage, y = well, fill = cluster)) +
+  scale_fill_viridis_c(name = 'Measure') +
+  coord_equal() +
+  theme_minimal() +
+  facet_wrap(meas ~ ., nrow = 2) +
+  ggsave('./graphs/ms_only_stats.jpg',width = 8, height =8, dpi = 600)
+  
+colnames(run_summary_df) <- c('All Clusters','HF Clusters','IS Clusters')
+
+ggplot(gather(run_summary_df)) +
+  geom_histogram(aes(x = value), bins = 22) +
+  facet_wrap(. ~ key, scales = 'free_x') +
+  theme_minimal() +
+  ggsave('./graphs/ms_only_hist.jpg',width = 8, height =4, dpi = 600)
+```
