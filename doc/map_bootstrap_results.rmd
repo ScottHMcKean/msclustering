@@ -251,11 +251,57 @@ ggplot(uncertainity_measures) +
   facet_wrap(meas ~ ., nrow = 2) +
   ggsave('./graphs/ms_only_stats.jpg',width = 8, height =8, dpi = 600)
   
+
+```
+
+map cluster results from drive
+
+```{r}
+drive_path <- 'E:/output_ms_only/'
+cluster_files <- list.files(drive_path, pattern = 'clusters', full.names = TRUE)
+cluster_clean <- cluster_files[c(-9,-12,-14,-15,-16,-17,-18)]
+cluster_dfs <- map(cluster_clean, fread)
+
+n_total <- function(x) x %>% nrow()
+n_is <- function(x) x %>% filter(hf == FALSE) %>% nrow()
+n_hf <- function(x) x %>% filter(hf == TRUE) %>% nrow()
+
+mapped_cluster_results <- data.frame(n_total = map_dbl(cluster_dfs, nrow),
+                                     n_is = map_dbl(cluster_dfs, n_is),
+                                     n_hf = map_dbl(cluster_dfs, n_hf))
+
+```
+
+```{r}
+library(ggsci)
+
+run_summary_df <- read_csv('mapped_cluster_results.csv') %>%
+  select(n_total, n_is, n_hf)
+
 colnames(run_summary_df) <- c('All Clusters','HF Clusters','IS Clusters')
 
 ggplot(gather(run_summary_df)) +
-  geom_histogram(aes(x = value), bins = 22) +
+  geom_histogram(aes(x = value, ..density..), fill = '#E64B35FF', bins = 22) +
   facet_wrap(. ~ key, scales = 'free_x') +
+  ggtitle('(a) Location  + HF Initiation Point Uncertainity') +
   theme_minimal() +
-  ggsave('./graphs/ms_only_hist.jpg',width = 8, height =4, dpi = 600)
+  ylab('Probability Density') +
+  xlab('Number of Clusters') +
+  theme(legend.position = 'none') +
+  ggsave('./ms_perf_hist.eps',width = 8, height =4) +
+  ggsave('./ms_perf_hist.jpg',width = 8, height =4, dpi = 600)
+
+mock_ms_only <- map_dfc(run_summary_df, sample, replace = TRUE, size = 3000)
+
+ggplot(gather(mock_ms_only)) +
+  geom_histogram(aes(x = value, ..density..), bins = 22, fill = '#4DBBD5FF') +
+  facet_wrap(. ~ key, scales = 'free_x') +
+  ggtitle('(b) Location Uncertainity Only') +
+  ylab('Probability Density') +
+  xlab('Number of Clusters') +
+  theme_minimal() +
+  theme(legend.position = 'none') +
+  ggsave('./ms_only_hist.eps',width = 8, height =4) +
+  ggsave('./ms_only_hist.jpg',width = 8, height =4, dpi = 600)
+
 ```
