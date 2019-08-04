@@ -14,11 +14,12 @@ library(furrr)
 
 # List Path
 ```{r}
-csv_path <- '~/2_processed_ms_results/output_ms_perf/'
+csv_path <- '~/2_processed_ms_results/output_ms_only/'
 ```
 # Get cluster files
 
 ```{r}
+registerDoParallel(cores=60)
 cluster_files <- list.files(csv_path, pattern = 'clusters', full.names = TRUE)
 tagged_ms_files <- list.files(csv_path, pattern = 'gmm_result', full.names = TRUE)
 cluster_dfs <- future_map(cluster_files, fread)
@@ -97,8 +98,6 @@ mapped_cluster_results <- data.frame(n_total = map_dbl(cluster_dfs, nrow),
                                      n_hf = map_dbl(cluster_dfs, n_hf),
                                      mean_strike_is = map_dbl(cluster_dfs, is_strike_mean),
                                      mean_strike_hf = map_dbl(cluster_dfs, hf_strike_mean))
-
-
 
 summary_mcr <- mapped_cluster_results %>%
   summarize_all(.funs = c('mean','sd'))
@@ -250,12 +249,13 @@ ggplot(uncertainity_measures) +
   theme_minimal() +
   facet_wrap(meas ~ ., nrow = 2) +
   ggsave('./graphs/ms_only_stats.jpg',width = 8, height =8, dpi = 600)
-  
+
+run_summary_df <- mapped_cluster_results %>% dplyr::select(n_total, n_is, n_hf)
 colnames(run_summary_df) <- c('All Clusters','HF Clusters','IS Clusters')
 
 ggplot(gather(run_summary_df)) +
   geom_histogram(aes(x = value), bins = 22) +
   facet_wrap(. ~ key, scales = 'free_x') +
   theme_minimal() +
-  ggsave('./graphs/ms_only_hist.jpg',width = 8, height =4, dpi = 600)
+  ggsave('./ms_only_hist.jpg',width = 8, height =4, dpi = 600)
 ```
