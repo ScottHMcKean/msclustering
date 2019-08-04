@@ -14,11 +14,12 @@ library(furrr)
 
 # List Path
 ```{r}
-csv_path <- '~/2_processed_ms_results/output_ms_perf/'
+csv_path <- '~/2_processed_ms_results/output_ms_only/'
 ```
 # Get cluster files
 
 ```{r}
+registerDoParallel(cores=60)
 cluster_files <- list.files(csv_path, pattern = 'clusters', full.names = TRUE)
 tagged_ms_files <- list.files(csv_path, pattern = 'gmm_result', full.names = TRUE)
 cluster_dfs <- future_map(cluster_files, fread)
@@ -97,8 +98,6 @@ mapped_cluster_results <- data.frame(n_total = map_dbl(cluster_dfs, nrow),
                                      n_hf = map_dbl(cluster_dfs, n_hf),
                                      mean_strike_is = map_dbl(cluster_dfs, is_strike_mean),
                                      mean_strike_hf = map_dbl(cluster_dfs, hf_strike_mean))
-
-
 
 summary_mcr <- mapped_cluster_results %>%
   summarize_all(.funs = c('mean','sd'))
@@ -250,6 +249,7 @@ ggplot(uncertainity_measures) +
   theme_minimal() +
   facet_wrap(meas ~ ., nrow = 2) +
   ggsave('./graphs/ms_only_stats.jpg',width = 8, height =8, dpi = 600)
+<<<<<<< HEAD
   
 
 ```
@@ -278,6 +278,10 @@ library(ggsci)
 run_summary_df <- read_csv('mapped_cluster_results.csv') %>%
   select(n_total, n_is, n_hf)
 
+=======
+
+run_summary_df <- mapped_cluster_results %>% dplyr::select(n_total, n_is, n_hf)
+>>>>>>> 32fb70d4e6cbef7b0a77150a8bfa57a0304bf809
 colnames(run_summary_df) <- c('All Clusters','HF Clusters','IS Clusters')
 
 ggplot(gather(run_summary_df)) +
@@ -285,6 +289,7 @@ ggplot(gather(run_summary_df)) +
   facet_wrap(. ~ key, scales = 'free_x') +
   ggtitle('(a) Location  + HF Initiation Point Uncertainity') +
   theme_minimal() +
+<<<<<<< HEAD
   ylab('Probability Density') +
   xlab('Number of Clusters') +
   theme(legend.position = 'none') +
@@ -304,4 +309,7 @@ ggplot(gather(mock_ms_only)) +
   ggsave('./ms_only_hist.eps',width = 8, height =4) +
   ggsave('./ms_only_hist.jpg',width = 8, height =4, dpi = 600)
 
+=======
+  ggsave('./ms_only_hist.jpg',width = 8, height =4, dpi = 600)
+>>>>>>> 32fb70d4e6cbef7b0a77150a8bfa57a0304bf809
 ```
