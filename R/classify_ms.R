@@ -62,8 +62,8 @@ classify_ms <- function(ms_df, comp_df,
       ms_df[i,'class_well'] = 0
       ms_df[i,'class_stage'] = 0
     } else {
-      ms_df[i,'class_well'] = comp_df[net_dist == min(net_dist),]$well_num
-      ms_df[i,'class_stage'] = comp_df[net_dist == min(net_dist),]$stage_num
+      ms_df[i,'class_well'] = comp_df[net_dist == min(net_dist),]$well_num[1]
+      ms_df[i,'class_stage'] = comp_df[net_dist == min(net_dist),]$stage_num[1]
     }
   }
   return(ms_df)

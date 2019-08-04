@@ -17,21 +17,21 @@ resample_comp_df <- function(comp_df, survey_df) {
     mutate(unc_y = runif(nrow(.), min = -unc_md, max = unc_md)) %>%
     mutate(unc_z = runif(nrow(.), min = -unc_md, max = unc_md))
 
-  for (well in well_numbers) {
+  for (current_well in well_numbers) {
     well_survey_df <- survey_df %>%
-      filter(well_num == well)
+      filter(well_num == current_well)
 
     spline_x <- splinefun(well_survey_df$md, well_survey_df$x)
     spline_y <- splinefun(well_survey_df$md, well_survey_df$y)
     spline_z <- splinefun(well_survey_df$md, well_survey_df$z)
 
     well_comp_df <- comp_df %>%
-      filter(well_num == well) %>%
+      filter(well_num == current_well) %>%
       mutate(x = spline_x(resample_md) + unc_x) %>%
       mutate(y = spline_y(resample_md) + unc_y) %>%
       mutate(z = spline_z(resample_md) + unc_z)
 
-    if (well == well_numbers[1]){
+    if (current_well == well_numbers[1]){
       resampled_comp_df <- well_comp_df
     } else {
       resampled_comp_df <- rbind(resampled_comp_df, well_comp_df)

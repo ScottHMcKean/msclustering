@@ -28,21 +28,26 @@ detect_outlier <- function(ms_df, comp_df, plot = FALSE) {
 
       stage_ms = ms_df %>%
         filter(class_well == well_num_i & class_stage == stage_num_i)
+      
+      if (nrow(stage_ms) == 0){
+        next
+      }
 
-      ms_dist = sqrt((stage_ms$x - stage$x)**2 + (stage_ms$y - stage$y)**2 +
-                 (stage_ms$z - stage$z)**2)
+      ms_dist = sqrt((stage_ms$x - stage$x)**2 + 
+                       (stage_ms$y - stage$y)**2 +
+                       (stage_ms$z - stage$z)**2)
 
       bool = (ms_dist - stage$r_ap) >= 0
 
       ms_df[(ms_df$class_well == well_num_i) & (ms_df$class_stage == stage_num_i),'bool'] <- bool
 
-      if (plot & (nrow(stage_ms) >= 5)) {
-        # filename
-        f_name = paste('outlier_W',well_num_i,'_S',stage_num_i,'.jpeg',sep = "")
-
-        outlier_ggplot(stage_ms, comp_df, surv_df, circle_data = dat, well = well_num_i,
-                       stage = stage_num_i, title = FALSE, legend_bool = TRUE)
-       }
+      # if (plot & (nrow(stage_ms) >= 5)) {
+      #   # filename
+      #   f_name = paste('outlier_W',well_num_i,'_S',stage_num_i,'.jpeg',sep = "")
+      # 
+      #   outlier_ggplot(stage_ms, comp_df, surv_df, circle_data = dat, well = well_num_i,
+      #                  stage = stage_num_i, title = FALSE, legend_bool = TRUE)
+      #  }
     }
   }
   return(ms_df)
