@@ -17,20 +17,16 @@ This notebook runs the original data
 
 ```{r}
 # load data
-ms_df <- read_csv('../data/2_processed_msdata.csv') %>%
-  filter(mw >= -1.5) %>%
-  mutate(well_num = operator_well_num) %>%
-  mutate(stage_num = operator_stage_num) %>%
-  mutate(well = well_num) %>%
-  mutate(stage = stage_num)
+ms_df <- read_csv('../data/3_reprocessed_msdata.csv') %>%
+  filter(mw >= -1.5)
 
-survey_df <- read_csv('../data/2_processed_surveys.csv') %>% 
+survey_df <- read_csv('../data/3_reprocessed_surveys.csv') %>% 
   mutate(well = well_num)
   
-comp_df <- read_csv('../data/2_processed_completions.csv') %>%
+comp_df <- read_csv('../data/3_reprocessed_completions.csv') %>%
   mutate(well = well_num) %>%
   mutate(stage = stage_num) %>%
-  mutate(r_ap = r_ap * 1.88)
+  mutate(r_ap = l_raw * 1.88)
 ```
 
 No separation at all
@@ -39,14 +35,16 @@ No separation at all
 ms_mock <- ms_df %>%
   mutate(class_well = 0, class_stage = 0, bool = 0)
 
-noseparation <- run_gmm_parallel(ms_df = ms_mock, 
-                           comp_df = comp_df,
-                           surv_df = survey_df,  
-                           run = 1, 
-                           comp_tcol = 't',  
-                           ms_tcol = 't',  
-                           plot = FALSE,
-                           output_path = '../output/')
+noseparation <- run_gmm(ms_outlier = ms_mock, 
+                        comp_df = comp_df, 
+                        surv_df = survey_df, 
+                        comp_start_col = "t",
+                        ms_feat = c("x", "y", "z", "t"), 
+                        ms_time_col = "t",
+                        title_bool = FALSE, 
+                        legend_bool = FALSE, 
+                        plot = FALSE,
+                        output_path = '../output/')
 
 saveRDS(noseparation, file = '../output/1_no_separation.rds')
 ```
@@ -57,82 +55,80 @@ Original operator separation
 ms_op_class <- ms_df %>%
   mutate(class_well = well, class_stage = stage, bool = 0)
   
-operator_class <- run_gmm_parallel(ms_df = ms_op_class, 
-                           comp_df = comp_df,
-                           surv_df = survey_df,  
-                           run = 1, 
-                           comp_tcol = 't',  
-                           ms_tcol = 't',  
-                           plot = FALSE,
-                           output_path = '../output/')
-
+operator_class <- run_gmm(ms_outlier = ms_op_class, 
+                          comp_df = comp_df, 
+                          surv_df = survey_df, 
+                          comp_start_col = "t",
+                          ms_feat = c("x", "y", "z", "t"), 
+                          ms_time_col = "t",
+                          title_bool = FALSE, 
+                          legend_bool = FALSE, 
+                          plot = FALSE,
+                          output_path = '../output/')
+  
 saveRDS(operator_class, file = '../output/2_operator_class.rds')
-
-w3s2_ms_df <- operator_class[[1]] %>%
-  filter(class_well == 3, class_stage ==2)
-
-w3s2_ms_df$cluster %>% unique()
 ```
 
 Reclassification
 
 ```{r}
-ms_class <- classify_ms(ms_df = ms_df, 
+ms_reclass <- classify_ms(ms_df = ms_df, 
                         comp_df = comp_df,
                         comp_tcol = 't', ms_tcol = 't')
 
-ms_class$bool <- 0
+ms_reclass$bool <- 0
 
-reclassification <- run_gmm_parallel(ms_df = ms_class, 
-                           comp_df = comp_df,
-                           surv_df = survey_df,  
-                           run = 1, 
-                           comp_tcol = 't',  
-                           ms_tcol = 't',  
-                           plot = FALSE,
-                           output_path = '../output/')
+reclassification <- run_gmm(ms_outlier = ms_reclass, 
+                          comp_df = comp_df, 
+                          surv_df = survey_df, 
+                          comp_start_col = "t",
+                          ms_feat = c("x", "y", "z", "t"), 
+                          ms_time_col = "t",
+                          title_bool = FALSE, 
+                          legend_bool = FALSE, 
+                          plot = FALSE,
+                          output_path = '../output/')
 
 saveRDS(reclassification, file = '../output/3_reclassification.rds')
-
-w3s2_ms_df <- reclassification[[1]] %>%
-  filter(class_well == 3, class_stage ==2)
-
-w3s2_ms_df$cluster %>% unique()
 ```
 
 Outlier Detection
 
 ```{r}
-ms_outlier <- detect_outlier(ms_df = ms_class, comp_df, plot = FALSE)
+ms_out <- detect_outlier(ms_df = ms_reclass, comp_df, plot = FALSE) %>% as.data.frame()
 
-outlier_detect <- run_gmm_parallel(ms_df = ms_outlier, 
-                           comp_df = comp_df,
-                           surv_df = survey_df,  
-                           run = 1, 
-                           comp_tcol = 't',  
-                           ms_tcol = 't',  
-                           plot = FALSE,
-                           output_path = '../output/')
+outlier_detect <- run_gmm(ms_outlier = ms_out, 
+                          comp_df = comp_df, 
+                          surv_df = survey_df, 
+                          comp_start_col = "t",
+                          ms_feat = c("x", "y", "z", "t"), 
+                          ms_time_col = "t",
+                          title_bool = FALSE, 
+                          legend_bool = FALSE, 
+                          plot = FALSE,
+                          output_path = '../output/')
 
 saveRDS(outlier_detect, file = '../output/4_outlier_detect.rds')
 
-w3s2_ms_df <- outlier_detect[[1]] %>%
-  filter(class_well == 3, class_stage ==2, bool == 1)
-
-w3s2_ms_df$cluster %>% unique()
-
-outlier_detect[[2]] %>% 
-  group_by(well_num_i, stage_num_i) %>% 
-  summarize(n = n()) %>%
-  pull(n) %>% 
-  hist()
-
-ms_outlier %>% 
-  group_by(class_well, class_stage, bool) %>% 
-  summarize(n = n()) %>% 
-  nrow()
-
 gmm_ms_results <- outlier_detect[[1]]
 gmm_clusters <- outlier_detect[[2]]
+
 ```
 
+Cluster Quality Ranking
+
+```{r}
+clusters <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_clusters.csv' %>%
+  read_csv()
+
+covariance <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_covariancedata.csv' %>%
+  read_csv()
+
+ms_gmm_results <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/ms_gmm_results.csv' %>%
+  read_csv()
+
+# planarity
+clusters %>%
+  dplyr::mutate()
+
+```
