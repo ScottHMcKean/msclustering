@@ -45,15 +45,15 @@ classify_ms <- function(ms_df, comp_df,
     event = ms_df[i,]
 
     # positive time after stage start in minutes
-    time_dist = (event$t - comp_df$t)*1440
+    time_dist = (event$t_scale - comp_df$t_scale)
 
     # events that occured before the start of a stage are excluded by imposing a large distance
     time_dist[time_dist < 0] <- 1E9
 
     # euclidean spatial distance
-    euc_dist = sqrt((event$x - comp_df$x)**2 +
-                      (event$y - comp_df$y)**2 +
-                      (event$z - comp_df$z)**2)
+    euc_dist = sqrt((event$x_scale - comp_df$x_scale)**2 +
+                      (event$y_scale - comp_df$y_scale)**2 +
+                      (event$z_scale - comp_df$z_scale)**2)
     
     # add distances and find minimum to classify each stage
     net_dist = sqrt(time_dist**2 + euc_dist**2)

@@ -12,7 +12,10 @@
 gg_cluster_plot <- function(ms_df, comp_df, surv_df, well = "1",
                             stage = "1",outlier = 0, order = '0',
                             title = TRUE, legend_bool = FALSE,
-                            label = "", output_path = "../output/"){
+                            label = "", output_path = "../output/",
+                            elev_lim = c(-2000,-3000),
+                            north_lim = NULL,
+                            east_lim = NULL){
 
   if (title) {
     if (outlier == 0){
@@ -46,8 +49,6 @@ gg_cluster_plot <- function(ms_df, comp_df, surv_df, well = "1",
     xlab('Easting (m)') +
     ylab('Northing (m)') +
     theme_minimal() +
-    ylim(500,6500) +
-    xlim(500,6500) +
     theme(legend.position="none")
 
   xzplot <- ggplot(ms_df) +
@@ -72,8 +73,7 @@ gg_cluster_plot <- function(ms_df, comp_df, surv_df, well = "1",
     xlab('Easting (m)') +
     ylab('Elevation (m)') +
     theme_minimal() +
-    ylim(-4500,-2000) +
-    xlim(500,6500) +
+    ylim(elev_lim[1],elev_lim[2]) +
     theme(legend.position="none")
 
   zyplot <- ggplot(ms_df) +
@@ -98,8 +98,7 @@ gg_cluster_plot <- function(ms_df, comp_df, surv_df, well = "1",
     xlab('Elevation (m)') +
     ylab('Northing (m)') +
     theme_minimal() +
-    xlim(-2000,-4500) +
-    ylim(500,6500) +
+    xlim(elev_lim[1],elev_lim[2]) +
     theme(legend.position="none")
 
   legend_plt <- ggplot(ms_df) +
