@@ -115,20 +115,173 @@ gmm_clusters <- outlier_detect[[2]]
 
 ```
 
+```{r}
+#' Calculate and Plot a PCA unit circle
+#' @param num_ml_df clean, numeric only dataframe of ml predictors
+#' @param output_path output path for plot
+#' @return ggplot
+#' @export
+pca_unit_circle_plot <- function(num_ml_df, output_path){
+  
+  pca <- prcomp(scale(num_ml_df))
+  
+  correlations = as.data.frame(cor(num_ml_df,pca$x))
+  
+  # draw unit circle
+  tt = seq(0, 2 * pi, length = 100)
+  circle <- data.frame(x= 1 * cos(tt), y = 1 * sin(tt))
+  
+  # draw PCA arrows
+  arrows <- data.frame(x1 = rep(0,nrow(correlations)), 
+                       y1 = rep(0,nrow(correlations)),
+                       x2 = correlations$PC1,
+                       y2 = correlations$PC2)
+  
+  # scale PCA results to +/- 1 to fit on unit circle plot
+  range <- apply(pca$x, 2, range)
+  
+  # pull coordinates of PCA
+  pca_results <- as.data.frame(scale(pca$x, center = TRUE, scale = abs(range[1,])+abs(range[2,]))) 
+  
+  # custom ggplot of PCA results and unit circle
+  ggplot() +
+    geom_hline(yintercept = 0, colour = 'gray') +
+    geom_vline(xintercept = 0, colour = 'gray') +
+    geom_point(data = pca_results, 
+               aes(x = PC1, y = PC2), alpha = 0.5) +
+    geom_path(data = circle, aes(x = x, y = y), colour = "gray65") +
+    geom_segment(data = arrows, 
+                 aes(x = x1, y = y1, xend = x2, yend = y2), colour = "gray65") +
+    geom_text(data = correlations, 
+              aes(x = PC1, y = PC2, label = rownames(correlations)), 
+              colour = 'black', size = 2) +
+    xlim(-1.1, 1.1) + 
+    ylim(-1.1, 1.1) +
+    coord_fixed() +
+    labs(size = 'Maximum\nMagnitude', col = 'Seismogenic') +
+    ggtitle("PCA Correlation Circle") +
+    theme_minimal() +
+    ggsave(paste(output_path,"pca_circle.jpeg",sep=""), width = 36, height = 24, units = 'cm')
+}
+
+```
+
 Cluster Quality Ranking
 
 ```{r}
-clusters <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_clusters.csv' %>%
-  read_csv()
-
-covariance <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_covariancedata.csv' %>%
-  read_csv()
+clean_cluster_name <- function(df, col){
+  df$cluster = df %>% pull(col) %>%
+    str_remove_all(., 'W') %>%
+    str_remove_all(., 'S') %>%
+    str_remove_all(., '_C')
+  
+  df
+}
 
 ms_gmm_results <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/ms_gmm_results.csv' %>%
   read_csv()
 
-# planarity
-clusters %>%
-  dplyr::mutate()
+clusters <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_clusters.csv' %>%
+  read_csv() %>%
+  clean_cluster_name(., 'name')
+
+covariance <- 'G:/My Drive/PhD/Analysis/marsh_creek/2020_01_09_msclustering_results/outlier_detect/xyzt_covariancedata.csv' %>%
+  read_csv() %>%
+  clean_cluster_name(., 'name')
+
+clusters <- ms_gmm_results %>% 
+  dplyr::group_by(cluster) %>% 
+  dplyr::summarise(n = n()) %>%
+  left_join(clusters, ., by = 'cluster')
+
+# size based and flatness metrics
+clusters <- clusters %>%
+  dplyr::mutate(
+    plane_area = (plane_l1*plane_l2),
+    ellipsoid_volume = 4/3*pi*plane_l1*plane_l2*plane_l3,
+    size_vs_n = (plane_l1+plane_l2+plane_l3) /3 / n,
+    avg_radius_flattening = ((plane_l1+plane_l2)/2 - plane_l3)/((plane_l1+plane_l2)/2),
+    major_radius_flattening = (plane_l1 - plane_l3)/plane_l1,
+    l3_l1_ratio = plane_l3/plane_l1
+    )
+
+point_to_plane_distance_cluster <- function(this_cluster, ms_gmm_results, covariance){
+  cluster_points = as.matrix(
+    ms_gmm_results[ms_gmm_results$cluster == this_cluster, c('x','y','z')]
+    )
+  
+  this_cov = covariance[covariance$cluster == this_cluster,]
+  
+  centre = as.numeric(this_cov[1, c('x_coord','y_coord','z_coord')])
+  
+  cov_mat = matrix(
+    as.matrix(this_cov[1, c('c11','c12','c13','c21','c22','c23','c31','c32','c33')]),
+    nrow = 3
+    )
+  
+  scale = as.numeric(this_cov[1, c('scale_x', 'scale_y', 'scale_z')])
+  
+  scaled_cov_mat = cov_mat*scale
+  
+  normal = eigen(scaled_cov_mat)[[2]][,3]
+  
+  dist = abs((rowSums(sweep(cluster_points,2,normal, FUN = "*")) - sum(centre*normal)))/norm_vec(normal)
+}
+
+cluster_distances <- map(.x = clusters$cluster, 
+                         .f = point_to_plane_distance_cluster, 
+                         ms_gmm_results = ms_gmm_results,
+                         covariance = covariance)
+
+cluster_log_likelihood <- function(this_cluster, ms_gmm_results, covariance){
+  cluster_points = as.matrix(
+    ms_gmm_results[ms_gmm_results$cluster == this_cluster, c('x','y','z')]
+    )
+  
+  this_cov = covariance[covariance$cluster == this_cluster,]
+  
+  centre = as.numeric(this_cov[1, c('x_coord','y_coord','z_coord')])
+  
+  cov_mat = matrix(
+    as.matrix(this_cov[1, c('c11','c12','c13','c21','c22','c23','c31','c32','c33')]),
+    nrow = 3
+    )
+  
+  scale = as.numeric(this_cov[1, c('scale_x', 'scale_y', 'scale_z')])
+  
+  scaled_cov_mat = cov_mat*scale
+  
+  -0.5 * (log(det(scaled_cov_mat)) + mahalanobis(cluster_points,centre,scaled_cov_mat) + nrow(scaled_cov_mat)*log(2*pi))
+}
+
+cluster_likelihood <- map(.x = clusters$cluster,
+                          .f = cluster_log_likelihood, 
+                         ms_gmm_results = ms_gmm_results,
+                         covariance = covariance)
+
+clusters <- clusters %>%
+  dplyr::mutate(rmse_point_plane_rmse = sapply(cluster_distances, function(x){sqrt(sum(x^2)/length(x))}),
+                mean_likelihood = sapply(cluster_likelihood, mean))
+
+clusters %>% dplyr::select(n, plane_area, ellipsoid_volume, size_vs_n,
+                           avg_radius_flattening, rmse_point_plane_rmse, 
+                           l3_l1_ratio, mean_likelihood, plane_dip) %>%
+  pca_unit_circle_plot(., '')
+
+clust_num_df <- clusters %>%
+  dplyr::select(n, plane_area, ellipsoid_volume, size_vs_n,
+                avg_radius_flattening, rmse_point_plane_rmse, 
+                l3_l1_ratio, mean_likelihood, plane_dip) %>%
+  scale()
+
+
+
+ggplot(clusters) +
+  geom_histogram(aes(x = mean_likelihood), bins = 100)
+
+ggplot(clusters) +
+  geom_histogram(aes(x = mean_size), bins = 100)
+
+dbscan()
 
 ```

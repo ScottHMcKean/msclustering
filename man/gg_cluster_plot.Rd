@@ -6,7 +6,8 @@
 \usage{
 gg_cluster_plot(ms_df, comp_df, surv_df, well = "1", stage = "1",
   outlier = 0, order = "0", title = TRUE, legend_bool = FALSE,
-  label = "", output_path = "../output/")
+  label = "", output_path = "../output/", elev_lim = c(-2000, -3000),
+  north_lim = NULL, east_lim = NULL)
 }
 \arguments{
 \item{ms_df}{microseismic dataframe with x,y,z}

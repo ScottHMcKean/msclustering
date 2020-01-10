@@ -9,6 +9,8 @@ License: GNU GPL V.3
 Encoding: UTF-8
 LazyData: true
 Depends:
+    dbscan,
+    pracma,
     mclust,
     tidyverse,
     gridExtra,
