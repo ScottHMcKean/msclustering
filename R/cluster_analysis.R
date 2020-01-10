@@ -20,7 +20,8 @@ clean_cluster_name <- function(df, col){
 #' @export
 point_to_plane_distance_cluster <- function(this_cluster, ms_gmm_results, covariance){
   cluster_points = as.matrix(
-    ms_gmm_results[ms_gmm_results$cluster == this_cluster, c('x','y','z')]
+    ms_gmm_results[ms_gmm_results$cluster == this_cluster, c('x','y','z')],
+    nrow = 1
   )
   
   this_cov = covariance[covariance$cluster == this_cluster,]
@@ -88,12 +89,12 @@ analyze_clusters <- function(clusters, ms_gmm_results, covariance){
       l3_l1_ratio = plane_l3/plane_l1
     )
   
-  cluster_distances <- map(.x = clusters$cluster, 
+  cluster_distances <- purrr::map(.x = clusters$cluster, 
                            .f = point_to_plane_distance_cluster, 
                            ms_gmm_results = ms_gmm_results,
                            covariance = covariance)
   
-  cluster_likelihood <- map(.x = clusters$cluster,
+  cluster_likelihood <- purrr::map(.x = clusters$cluster,
                             .f = cluster_log_likelihood, 
                             ms_gmm_results = ms_gmm_results,
                             covariance = covariance)
