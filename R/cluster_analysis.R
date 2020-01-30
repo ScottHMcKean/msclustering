@@ -76,7 +76,7 @@ cluster_log_likelihood <- function(this_cluster, ms_gmm_results, covariance){
 #' @return vector of log likelihood of each point in a cluster
 #' @export
 analyze_clusters <- function(clusters, ms_gmm_results, covariance){
-  clusters <- ms_gmm_results %>% 
+  calc_clusters <- ms_gmm_results %>% 
     dplyr::group_by(cluster) %>% 
     dplyr::summarise(n = n()) %>%
     dplyr::left_join(clusters, ., by = 'cluster') %>%
@@ -89,29 +89,37 @@ analyze_clusters <- function(clusters, ms_gmm_results, covariance){
       l3_l1_ratio = plane_l3/plane_l1
     )
   
-  cluster_distances <- purrr::map(.x = clusters$cluster, 
+  cluster_distances <- purrr::map(.x = calc_clusters$cluster, 
                            .f = point_to_plane_distance_cluster, 
                            ms_gmm_results = ms_gmm_results,
                            covariance = covariance)
   
-  cluster_likelihood <- purrr::map(.x = clusters$cluster,
+  cluster_likelihood <- purrr::map(.x = calc_clusters$cluster,
                             .f = cluster_log_likelihood, 
                             ms_gmm_results = ms_gmm_results,
                             covariance = covariance)
   
-  clusters <- clusters %>%
+  calc_clusters <- calc_clusters %>%
     dplyr::mutate(
       rmse_point_plane_rmse = sapply(cluster_distances, function(x){sqrt(sum(x^2)/length(x))}),
       mean_log_likelihood = sapply(cluster_likelihood, mean)
     )
   
-  clusters$dbscan <- clusters %>%
-    dplyr::select(ellipsoid_volume, mean_axis_vs_n,
-                  avg_radius_flattening, rmse_point_plane_rmse, 
-                  mean_log_likelihood) %>%
-    scale() %>%
-    dbscan(., eps = 1, minPts = 8) %>% 
-    .$cluster
+  current_minpts = 2
+  calc_clusters$dbscan <- sample(0:10, size = nrow(clusters), replace = TRUE)
+  while (length(unique(calc_clusters$dbscan)) > 2) {
+    current_minpts = current_minpts + 1
+    
+    calc_clusters$dbscan <- calc_clusters %>%
+      dplyr::select(ellipsoid_volume, mean_axis_vs_n,
+                    avg_radius_flattening, rmse_point_plane_rmse, 
+                    mean_log_likelihood) %>%
+      scale() %>%
+      dbscan(., eps = 1, minPts = current_minpts) %>% 
+      .$cluster
+    
+  }
   
-  clusters
+  print(paste0('Hypertuned minPts value: ', current_minpts))
+  calc_clusters
 }
