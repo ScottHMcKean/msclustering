@@ -105,21 +105,13 @@ analyze_clusters <- function(clusters, ms_gmm_results, covariance){
       mean_log_likelihood = sapply(cluster_likelihood, mean)
     )
   
-  current_minpts = 2
-  calc_clusters$dbscan <- sample(0:10, size = nrow(clusters), replace = TRUE)
-  while (length(unique(calc_clusters$dbscan)) > 2) {
-    current_minpts = current_minpts + 1
-    
-    calc_clusters$dbscan <- calc_clusters %>%
+  calc_clusters$dbscan <- calc_clusters %>%
       dplyr::select(ellipsoid_volume, mean_axis_vs_n,
                     avg_radius_flattening, rmse_point_plane_rmse, 
                     mean_log_likelihood) %>%
       scale() %>%
-      dbscan(., eps = 1, minPts = current_minpts) %>% 
+      dbscan(., eps = 1, minPts = 5) %>% 
       .$cluster
-    
-  }
   
-  print(paste0('Hypertuned minPts value: ', current_minpts))
   calc_clusters
 }
